@@ -1,15 +1,23 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, MessageSquare, Settings, Trash2, X } from "lucide-react";
+import { Plus, MessageSquare, Settings, Trash2, X, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AIOrb } from "./ai-orb";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 
 interface Chat {
   id: string;
   title: string;
   preview: string;
   timestamp: Date;
+}
+
+interface User {
+  id: string;
+  email: string;
+  displayName: string;
 }
 
 interface ChatSidebarProps {
@@ -23,6 +31,7 @@ interface ChatSidebarProps {
   onNewChat: () => void;
   onDeleteChat: (id: string) => void;
   onOpenSettings: () => void;
+  user: User;
 }
 
 export function ChatSidebar({
@@ -36,6 +45,7 @@ export function ChatSidebar({
   onNewChat,
   onDeleteChat,
   onOpenSettings,
+  user,
 }: ChatSidebarProps) {
   return (
     <>
@@ -75,6 +85,7 @@ export function ChatSidebar({
           onOpenSettings={onOpenSettings}
           onClose={onClose}
           showCloseButton
+          user={user}
         />
       </motion.aside>
 
@@ -101,6 +112,7 @@ export function ChatSidebar({
           onOpenSettings={onOpenSettings}
           onClose={onToggleCollapse}
           showCloseButton={false}
+          user={user}
         />
       </motion.aside>
     </>
@@ -116,6 +128,7 @@ interface SidebarContentProps {
   onOpenSettings: () => void;
   onClose: () => void;
   showCloseButton: boolean;
+  user: User;
 }
 
 function SidebarContent({
@@ -127,7 +140,16 @@ function SidebarContent({
   onOpenSettings,
   onClose,
   showCloseButton,
+  user,
 }: SidebarContentProps) {
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/auth/login");
+    router.refresh();
+  };
   return (
     <>
       {/* Header */}
@@ -229,7 +251,18 @@ function SidebarContent({
       </div>
 
       {/* Footer */}
-      <div className="p-4 border-t border-sidebar-border">
+      <div className="p-4 border-t border-sidebar-border space-y-1">
+        {/* User info */}
+        <div className="flex items-center gap-3 px-3 py-2 mb-2">
+          <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
+            {user.displayName.charAt(0).toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-sidebar-foreground truncate">{user.displayName}</p>
+            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+          </div>
+        </div>
+
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
@@ -241,6 +274,19 @@ function SidebarContent({
         >
           <Settings className="w-4 h-4" />
           <span className="text-sm">Settings</span>
+        </motion.button>
+
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={handleSignOut}
+          className="
+            w-full flex items-center gap-3 px-4 py-2.5 rounded-xl
+            text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors
+          "
+        >
+          <LogOut className="w-4 h-4" />
+          <span className="text-sm">Sign out</span>
         </motion.button>
       </div>
     </>

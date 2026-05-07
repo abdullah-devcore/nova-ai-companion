@@ -1,19 +1,16 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { Chat, Message } from "@/lib/types/database";
+import type { Chat, Message, UserMemory } from "@/lib/types/database";
 
 export async function createChat(title?: string): Promise<Chat | null> {
   const supabase = await createClient();
-  
   const { data: { user } } = await supabase.auth.getUser();
-  
+  if (!user) return null;
+
   const { data, error } = await supabase
     .from("chats")
-    .insert({
-      title: title || "New Chat",
-      user_id: user?.id || null,
-    })
+    .insert({ title: title || "New Chat", user_id: user.id })
     .select()
     .single();
 
@@ -21,46 +18,48 @@ export async function createChat(title?: string): Promise<Chat | null> {
     console.error("Error creating chat:", error);
     return null;
   }
-
   return data;
 }
 
 export async function getChats(): Promise<Chat[]> {
   const supabase = await createClient();
-  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
   const { data, error } = await supabase
     .from("chats")
     .select("*")
+    .eq("user_id", user.id)
     .order("updated_at", { ascending: false });
 
   if (error) {
     console.error("Error fetching chats:", error);
     return [];
   }
-
   return data || [];
 }
 
 export async function getChat(chatId: string): Promise<Chat | null> {
   const supabase = await createClient();
-  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
   const { data, error } = await supabase
     .from("chats")
     .select("*")
     .eq("id", chatId)
-    .single();
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-  if (error) {
-    console.error("Error fetching chat:", error);
-    return null;
-  }
-
+  if (error) return null;
   return data;
 }
 
 export async function getChatMessages(chatId: string): Promise<Message[]> {
   const supabase = await createClient();
-  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
   const { data, error } = await supabase
     .from("messages")
     .select("*")
@@ -71,23 +70,27 @@ export async function getChatMessages(chatId: string): Promise<Message[]> {
     console.error("Error fetching messages:", error);
     return [];
   }
-
   return data || [];
 }
 
 export async function addMessage(
   chatId: string,
   role: "user" | "assistant",
-  content: string
+  content: string,
+  emotionTag?: string
 ): Promise<Message | null> {
   const supabase = await createClient();
-  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
   const { data, error } = await supabase
     .from("messages")
     .insert({
       chat_id: chatId,
+      user_id: user.id,
       role,
       content,
+      emotion_tag: emotionTag || null,
     })
     .select()
     .single();
@@ -97,7 +100,6 @@ export async function addMessage(
     return null;
   }
 
-  // Update the chat's updated_at timestamp
   await supabase
     .from("chats")
     .update({ updated_at: new Date().toISOString() })
@@ -106,47 +108,69 @@ export async function addMessage(
   return data;
 }
 
-export async function updateChatTitle(
-  chatId: string,
-  title: string
-): Promise<boolean> {
+export async function updateChatTitle(chatId: string, title: string): Promise<boolean> {
   const supabase = await createClient();
-  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
   const { error } = await supabase
     .from("chats")
     .update({ title })
-    .eq("id", chatId);
+    .eq("id", chatId)
+    .eq("user_id", user.id);
 
-  if (error) {
-    console.error("Error updating chat title:", error);
-    return false;
-  }
-
-  return true;
+  return !error;
 }
 
 export async function deleteChat(chatId: string): Promise<boolean> {
   const supabase = await createClient();
-  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
   const { error } = await supabase
     .from("chats")
     .delete()
-    .eq("id", chatId);
+    .eq("id", chatId)
+    .eq("user_id", user.id);
 
-  if (error) {
-    console.error("Error deleting chat:", error);
-    return false;
-  }
+  return !error;
+}
 
-  return true;
+export async function getUserMemories(): Promise<UserMemory[]> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from("user_memories")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("importance", { ascending: false })
+    .limit(20);
+
+  if (error) return [];
+  return data || [];
+}
+
+export async function saveUserMemory(
+  content: string,
+  memoryType: UserMemory["memory_type"],
+  importance: number = 5
+): Promise<boolean> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { error } = await supabase
+    .from("user_memories")
+    .insert({ user_id: user.id, content, memory_type: memoryType, importance });
+
+  return !error;
 }
 
 export async function generateChatTitle(firstMessage: string): Promise<string> {
-  // Generate a simple title from the first message
   const words = firstMessage.split(" ").slice(0, 6);
   let title = words.join(" ");
-  if (firstMessage.split(" ").length > 6) {
-    title += "...";
-  }
+  if (firstMessage.split(" ").length > 6) title += "...";
   return title || "New Chat";
 }

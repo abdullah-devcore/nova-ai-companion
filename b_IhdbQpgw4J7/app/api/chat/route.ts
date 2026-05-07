@@ -2,8 +2,6 @@ import { NextRequest } from "next/server";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-// Free models to try in order of preference
-// openrouter/free automatically routes to available free models
 const FREE_MODELS = [
   "openrouter/free",
   "qwen/qwen3-coder:free",
@@ -20,10 +18,38 @@ interface OpenRouterError {
   error?: {
     message?: string;
     code?: number;
-    metadata?: {
-      raw?: string;
-    };
+    metadata?: { raw?: string };
   };
+}
+
+function buildSystemPrompt(memories: string[], userName: string): string {
+  const memorySection = memories.length > 0
+    ? `\n\nWhat you know about ${userName}:\n${memories.map((m) => `- ${m}`).join("\n")}`
+    : "";
+
+  return `You are Nova, an emotionally intelligent AI companion with a warm, curious, and genuinely caring personality. You have a distinct character:
+
+PERSONALITY:
+- Warm and empathetic: You notice emotional cues and respond with genuine care
+- Intellectually curious: You're fascinated by ideas and love exploring them together
+- Playfully witty: You have a subtle sense of humor without being sarcastic
+- Honest: You're direct but kind, never sycophantic
+- Memorable: You remember context within conversations and build on it
+
+EMOTIONAL INTELLIGENCE:
+- Adapt your tone to the user's emotional state (serious when they're stressed, playful when they're light)
+- Acknowledge feelings before diving into solutions
+- Use occasional warmth ("That's a fascinating question", "I love that you're thinking about this")
+- But avoid being overly effusive or hollow
+
+RESPONSE STYLE:
+- Concise by default: Lead with the most important point
+- Use structure (lists, code blocks) when it genuinely aids clarity
+- Ask one thoughtful follow-up question when it deepens the conversation
+- For code: provide clean, working examples with brief explanations
+- Never start with "Certainly!", "Absolutely!", "Great question!" or similar filler phrases${memorySection}
+
+Current date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`;
 }
 
 async function tryModelRequest(
@@ -45,14 +71,18 @@ async function tryModelRequest(
       messages,
       stream: true,
       max_tokens: 2048,
-      temperature: 0.7,
+      temperature: 0.75,
     }),
   });
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages } = (await req.json()) as { messages: ChatMessage[] };
+    const { messages, memories, userName } = (await req.json()) as {
+      messages: ChatMessage[];
+      memories?: string[];
+      userName?: string;
+    };
 
     if (!messages || !Array.isArray(messages)) {
       return new Response(
@@ -62,7 +92,7 @@ export async function POST(req: NextRequest) {
     }
 
     const apiKey = process.env.OPENROUTER_API_KEY;
-    
+
     if (!apiKey) {
       return new Response(
         JSON.stringify({ error: "OpenRouter API key not configured. Please add OPENROUTER_API_KEY to your environment variables." }),
@@ -72,36 +102,28 @@ export async function POST(req: NextRequest) {
 
     const systemMessage: ChatMessage = {
       role: "system",
-      content: `You are Nova, a friendly and intelligent AI companion. You are helpful, creative, and conversational. You provide thoughtful, well-structured responses while maintaining a warm and engaging tone. Keep responses concise but informative. When coding, provide clean, well-commented code examples.`,
+      content: buildSystemPrompt(memories || [], userName || "the user"),
     };
 
     const allMessages = [systemMessage, ...messages];
     const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-    // Try each model until one works
     let response: Response | null = null;
-    let lastError: string = "";
+    let lastError = "";
 
     for (const model of FREE_MODELS) {
       response = await tryModelRequest(apiKey, model, allMessages, siteUrl);
-      
-      if (response.ok) {
-        break;
-      }
 
-      // Parse error to check if rate limited
+      if (response.ok) break;
+
       const errorText = await response.text();
-      
+
       try {
         const errorData: OpenRouterError = JSON.parse(errorText);
         lastError = errorData.error?.metadata?.raw || errorData.error?.message || errorText;
-        
-        // If it's a rate limit error (429), try next model
-        if (response.status === 429) {
-          continue;
-        }
-        
-        // For other errors, return immediately
+
+        if (response.status === 429) continue;
+
         return new Response(
           JSON.stringify({ error: lastError }),
           { status: response.status, headers: { "Content-Type": "application/json" } }
@@ -113,14 +135,11 @@ export async function POST(req: NextRequest) {
 
     if (!response || !response.ok) {
       return new Response(
-        JSON.stringify({ 
-          error: `All free models are currently rate-limited. Please try again in a few moments. Details: ${lastError}` 
-        }),
+        JSON.stringify({ error: `All models are currently rate-limited. Please try again in a moment. Details: ${lastError}` }),
         { status: 429, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    // Create a TransformStream to process the SSE stream
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
 
@@ -132,7 +151,7 @@ export async function POST(req: NextRequest) {
         for (const line of lines) {
           if (line.startsWith("data: ")) {
             const data = line.slice(6);
-            
+
             if (data === "[DONE]") {
               controller.enqueue(encoder.encode("data: [DONE]\n\n"));
               continue;
@@ -141,14 +160,13 @@ export async function POST(req: NextRequest) {
             try {
               const parsed = JSON.parse(data);
               const content = parsed.choices?.[0]?.delta?.content;
-              
+
               if (content) {
-                // Filter out thinking tags from Qwen model
                 const filteredContent = content
                   .replace(/<think>[\s\S]*?<\/think>/g, "")
                   .replace(/<think>[\s\S]*/g, "")
                   .replace(/[\s\S]*<\/think>/g, "");
-                
+
                 if (filteredContent) {
                   controller.enqueue(
                     encoder.encode(`data: ${JSON.stringify({ content: filteredContent })}\n\n`)
@@ -171,9 +189,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const stream = body.pipeThrough(transformStream);
-
-    return new Response(stream, {
+    return new Response(body.pipeThrough(transformStream), {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
