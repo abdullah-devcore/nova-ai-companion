@@ -1,6 +1,2 @@
 [[plugins]]
 package = "@netlify/plugin-nextjs"
-
-[build]
-command = "npm run build"
-functions = "netlify/functions"
