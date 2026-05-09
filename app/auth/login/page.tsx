@@ -21,7 +21,9 @@ export default function LoginPage() {
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
+      console.log("[Login] Session check:", user ? `logged in as ${user.email}` : "not logged in");
       if (user) {
+        console.log("[Login] Already authenticated, redirecting to /chat");
         router.replace("/chat");
       } else {
         setCheckingSession(false);
@@ -34,18 +36,29 @@ export default function LoginPage() {
     setIsLoading(true);
     setError(null);
 
+    console.log("[Login] Attempting sign in for:", email);
+
     const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (signInError) {
+      console.error("[Login] Sign in error:", signInError.message);
       setError(signInError.message);
       setIsLoading(false);
       return;
     }
 
+    console.log("[Login] Sign in successful, session established:", !!data.session);
+
+    // Wait for the session to be fully written to cookies before navigating.
+    // The Supabase browser client sets cookies asynchronously after signIn.
+    // If we navigate before cookies are set, the middleware won't see the session.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    console.log("[Login] Navigating to /chat");
     router.push("/chat");
   };
 

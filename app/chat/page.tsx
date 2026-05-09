@@ -8,7 +8,10 @@ export default async function ChatPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  console.log("[ChatPage] User:", user ? user.email : "none");
+
   if (!user) {
+    console.log("[ChatPage] No user, redirecting to /auth/login");
     redirect("/auth/login");
   }
 
@@ -16,6 +19,8 @@ export default async function ChatPage() {
     getChats(),
     getProfile(),
   ]);
+
+  console.log("[ChatPage] Rendering chat for:", user.email, "| Profile:", profile?.display_name || "none");
 
   return (
     <ChatInterface

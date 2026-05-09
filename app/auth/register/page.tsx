@@ -22,7 +22,9 @@ export default function RegisterPage() {
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
+      console.log("[Register] Session check:", user ? `logged in as ${user.email}` : "not logged in");
       if (user) {
+        console.log("[Register] Already authenticated, redirecting to /chat");
         router.replace("/chat");
       } else {
         setCheckingSession(false);
@@ -41,19 +43,28 @@ export default function RegisterPage() {
       return;
     }
 
+    console.log("[Register] Attempting sign up for:", email);
+
     const supabase = createClient();
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { display_name: displayName } },
     });
 
     if (signUpError) {
+      console.error("[Register] Sign up error:", signUpError.message);
       setError(signUpError.message);
       setIsLoading(false);
       return;
     }
 
+    console.log("[Register] Sign up successful, session established:", !!data.session);
+
+    // Wait for the session to be fully written to cookies before navigating.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    console.log("[Register] Navigating to /chat");
     router.push("/chat");
   };
 
