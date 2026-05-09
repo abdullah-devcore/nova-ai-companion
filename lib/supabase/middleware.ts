@@ -2,7 +2,13 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
-  console.log(`[Middleware] ${request.method} ${request.nextUrl.pathname}`)
+  const { pathname } = request.nextUrl
+  console.log(`[Middleware] ${request.method} ${pathname}`)
+
+  // Allow API routes and static assets through without auth checks
+  if (pathname.startsWith('/api') || pathname.startsWith('/_next')) {
+    return NextResponse.next({ request })
+  }
 
   let supabaseResponse = NextResponse.next({
     request,
@@ -17,12 +23,15 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
+          // Set cookies on the request so they're available for getUser()
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
           )
+          // Create a new response with the updated cookies
           supabaseResponse = NextResponse.next({
             request,
           })
+          // Set cookies on the response so the browser persists them
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options),
           )
@@ -35,14 +44,7 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const { pathname } = request.nextUrl
-
   console.log(`[Middleware] User: ${user ? user.email : 'none'} | Path: ${pathname}`)
-
-  // Allow API routes and static assets through without auth checks
-  if (pathname.startsWith('/api') || pathname.startsWith('/_next')) {
-    return supabaseResponse
-  }
 
   // Unauthenticated users: only allow auth pages
   if (!user && !pathname.startsWith('/auth')) {

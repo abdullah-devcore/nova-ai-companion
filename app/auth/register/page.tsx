@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Sparkles } from "lucide-react";
 import { AIOrb } from "@/components/ai-orb";
@@ -18,6 +18,7 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const redirecting = useRef(false);
 
   // Check if already logged in on mount
   useEffect(() => {
@@ -28,7 +29,7 @@ export default function RegisterPage() {
       if (cancelled) return;
       if (session) {
         console.log("[Register] Already authenticated, redirecting to /chat");
-        router.replace("/chat");
+        window.location.replace("/chat");
       } else {
         console.log("[Register] No session found, showing register form");
         setCheckingSession(false);
@@ -36,10 +37,12 @@ export default function RegisterPage() {
     });
 
     return () => { cancelled = true; };
-  }, [router]);
+  }, []);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+    if (redirecting.current) return;
+
     setIsLoading(true);
     setError(null);
 
@@ -54,24 +57,29 @@ export default function RegisterPage() {
     try {
       const supabase = createClient();
 
-      const result = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { display_name: displayName } },
       });
 
-      if (result.error) {
-        console.error("[Register] Sign up error:", result.error.message);
-        setError(result.error.message);
+      console.log("[Register] signUp resolved. Error?", signUpError?.message, "Session?", !!data.session);
+
+      if (signUpError) {
+        console.error("[Register] Sign up error:", signUpError.message);
+        setError(signUpError.message);
         setIsLoading(false);
         return;
       }
 
-      console.log("[Register] Sign up successful, session:", !!result.data.session);
+      // Verify session was actually stored
+      const { data: sessionData } = await supabase.auth.getSession();
+      console.log("[Register] Session after sign-up:", !!sessionData.session);
 
-      // Use window.location for a full page navigation to ensure
-      // the server-side middleware sees the new cookies.
-      window.location.href = "/chat";
+      redirecting.current = true;
+      console.log("[Register] Redirecting to /chat via window.location.replace");
+
+      window.location.replace("/chat");
     } catch (err) {
       console.error("[Register] Unexpected error:", err);
       setError("An unexpected error occurred. Please try again.");
