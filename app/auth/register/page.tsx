@@ -8,6 +8,7 @@ import { FloatingGradients } from "@/components/floating-gradients";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { signUp } from "@/lib/actions/auth";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -55,34 +56,26 @@ export default function RegisterPage() {
     console.log("[Register] Attempting sign up for:", email);
 
     try {
-      const supabase = createClient();
+      // Use server action for sign-up - this is more reliable than client-side
+      const result = await signUp(email, password, displayName);
 
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { display_name: displayName } },
-      });
-
-      console.log("[Register] signUp resolved. Error?", signUpError?.message, "Session?", !!data.session);
-
-      if (signUpError) {
-        console.error("[Register] Sign up error:", signUpError.message);
-        setError(signUpError.message);
+      if (result.error) {
+        console.error("[Register] Sign up error:", result.error);
+        setError(result.error);
         setIsLoading(false);
         return;
       }
 
-      // Verify session was actually stored
-      const { data: sessionData } = await supabase.auth.getSession();
-      console.log("[Register] Session after sign-up:", !!sessionData.session);
+      console.log("[Register] Sign up successful via server action");
 
       redirecting.current = true;
-      console.log("[Register] Redirecting to /chat via window.location.replace");
+      console.log("[Register] Redirecting to /chat");
 
+      // Hard navigation to ensure server sees the cookies
       window.location.replace("/chat");
     } catch (err) {
       console.error("[Register] Unexpected error:", err);
-      setError("An unexpected error occurred. Please try again.");
+      setError(err instanceof Error ? err.message : "An unexpected error occurred. Please try again.");
       setIsLoading(false);
     }
   }, [email, password, displayName]);
@@ -157,7 +150,8 @@ export default function RegisterPage() {
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="Alex"
                   required
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-secondary/40 border border-border focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30 text-sm transition-all placeholder:text-muted-foreground/60"
+                  disabled={isLoading}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-secondary/40 border border-border focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30 text-sm transition-all placeholder:text-muted-foreground/60 disabled:opacity-50"
                 />
               </div>
             </div>
@@ -173,7 +167,8 @@ export default function RegisterPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   required
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-secondary/40 border border-border focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30 text-sm transition-all placeholder:text-muted-foreground/60"
+                  disabled={isLoading}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-secondary/40 border border-border focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30 text-sm transition-all placeholder:text-muted-foreground/60 disabled:opacity-50"
                 />
               </div>
             </div>
@@ -189,12 +184,14 @@ export default function RegisterPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="At least 6 characters"
                   required
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-secondary/40 border border-border focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30 text-sm transition-all placeholder:text-muted-foreground/60"
+                  disabled={isLoading}
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-secondary/40 border border-border focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30 text-sm transition-all placeholder:text-muted-foreground/60 disabled:opacity-50"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  disabled={isLoading}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>

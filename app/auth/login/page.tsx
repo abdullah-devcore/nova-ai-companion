@@ -8,6 +8,7 @@ import { FloatingGradients } from "@/components/floating-gradients";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { signIn } from "@/lib/actions/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,37 +49,26 @@ export default function LoginPage() {
     console.log("[Login] Attempting sign in for:", email);
 
     try {
-      const supabase = createClient();
+      // Use server action for sign-in - this is more reliable than client-side
+      const result = await signIn(email, password);
 
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      console.log("[Login] signInWithPassword resolved. Error?", signInError?.message, "Session?", !!data.session);
-
-      if (signInError) {
-        console.error("[Login] Sign in error:", signInError.message);
-        setError(signInError.message);
+      if (result.error) {
+        console.error("[Login] Sign in error:", result.error);
+        setError(result.error);
         setIsLoading(false);
         return;
       }
 
-      // Verify session was actually stored
-      const { data: sessionData } = await supabase.auth.getSession();
-      console.log("[Login] Session after sign-in:", !!sessionData.session, "Access token:", sessionData.session?.access_token?.substring(0, 20) + "...");
+      console.log("[Login] Sign in successful via server action");
 
       redirecting.current = true;
-      console.log("[Login] Redirecting to /chat via window.location.replace");
+      console.log("[Login] Redirecting to /chat");
 
-      // Use window.location.replace for a hard navigation.
-      // This ensures the browser sends all cookies (including the newly-set
-      // Supabase auth cookies) with the request to /chat, allowing the
-      // server-side middleware to see the authenticated session.
+      // Hard navigation to ensure server sees the cookies
       window.location.replace("/chat");
     } catch (err) {
       console.error("[Login] Unexpected error:", err);
-      setError("An unexpected error occurred. Please try again.");
+      setError(err instanceof Error ? err.message : "An unexpected error occurred. Please try again.");
       setIsLoading(false);
     }
   }, [email, password]);
@@ -153,7 +143,8 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   required
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-secondary/40 border border-border focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30 text-sm transition-all placeholder:text-muted-foreground/60"
+                  disabled={isLoading}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-secondary/40 border border-border focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30 text-sm transition-all placeholder:text-muted-foreground/60 disabled:opacity-50"
                 />
               </div>
             </div>
@@ -169,12 +160,14 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Your password"
                   required
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-secondary/40 border border-border focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30 text-sm transition-all placeholder:text-muted-foreground/60"
+                  disabled={isLoading}
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-secondary/40 border border-border focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30 text-sm transition-all placeholder:text-muted-foreground/60 disabled:opacity-50"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  disabled={isLoading}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
