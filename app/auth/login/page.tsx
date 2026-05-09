@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Mail, Lock, ArrowRight, Sparkles } from "lucide-react";
 import { AIOrb } from "@/components/ai-orb";
@@ -18,49 +18,60 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
 
+  // Check if already logged in on mount
   useEffect(() => {
+    let cancelled = false;
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      console.log("[Login] Session check:", user ? `logged in as ${user.email}` : "not logged in");
-      if (user) {
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled) return;
+      if (session) {
         console.log("[Login] Already authenticated, redirecting to /chat");
         router.replace("/chat");
       } else {
+        console.log("[Login] No session found, showing login form");
         setCheckingSession(false);
       }
     });
+
+    return () => { cancelled = true; };
   }, [router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
     console.log("[Login] Attempting sign in for:", email);
 
-    const supabase = createClient();
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const supabase = createClient();
 
-    if (signInError) {
-      console.error("[Login] Sign in error:", signInError.message);
-      setError(signInError.message);
+      const result = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (result.error) {
+        console.error("[Login] Sign in error:", result.error.message);
+        setError(result.error.message);
+        setIsLoading(false);
+        return;
+      }
+
+      console.log("[Login] Sign in successful, session:", !!result.data.session);
+
+      // Use window.location for a full page navigation to ensure
+      // the server-side middleware sees the new cookies.
+      // router.push() is a client-side navigation that may not
+      // trigger the middleware to re-read cookies.
+      window.location.href = "/chat";
+    } catch (err) {
+      console.error("[Login] Unexpected error:", err);
+      setError("An unexpected error occurred. Please try again.");
       setIsLoading(false);
-      return;
     }
-
-    console.log("[Login] Sign in successful, session established:", !!data.session);
-
-    // Wait for the session to be fully written to cookies before navigating.
-    // The Supabase browser client sets cookies asynchronously after signIn.
-    // If we navigate before cookies are set, the middleware won't see the session.
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    console.log("[Login] Navigating to /chat");
-    router.push("/chat");
-  };
+  }, [email, password]);
 
   if (checkingSession) {
     return (

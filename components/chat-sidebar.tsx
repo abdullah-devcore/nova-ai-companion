@@ -149,7 +149,7 @@ function SidebarContent({
     console.log("[Sidebar] Signing out...");
     await supabase.auth.signOut();
     console.log("[Sidebar] Signed out, redirecting to /auth/login");
-    router.push("/auth/login");
+    window.location.href = "/auth/login";
   };
   return (
     <>
