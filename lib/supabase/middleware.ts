@@ -5,8 +5,13 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
   console.log(`[Middleware] ${request.method} ${pathname}`)
 
-  // Allow API routes and static assets through without auth checks
-  if (pathname.startsWith('/api') || pathname.startsWith('/_next')) {
+  // Allow API routes, static assets, and internal dev routes through without auth checks
+  if (
+    pathname.startsWith('/api') ||
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/__nextjs') ||
+    pathname === '/favicon.ico'
+  ) {
     return NextResponse.next({ request })
   }
 
@@ -27,40 +32,47 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
           )
-          // Create a new response with the updated cookies
-          supabaseResponse = NextResponse.next({
-            request,
-          })
           // Set cookies on the response so the browser persists them
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options),
+            supabaseResponse.cookies.set(name, value, {
+              ...options,
+              sameSite: 'lax',
+              secure: process.env.NODE_ENV === 'production',
+              path: '/',
+            }),
           )
         },
       },
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-  console.log(`[Middleware] User: ${user ? user.email : 'none'} | Path: ${pathname}`)
+    console.log(`[Middleware] User: ${user ? user.email : 'none'} | Path: ${pathname}`)
 
-  // Unauthenticated users: only allow auth pages
-  if (!user && !pathname.startsWith('/auth')) {
-    console.log(`[Middleware] No user, redirecting ${pathname} -> /auth/login`)
-    const url = request.nextUrl.clone()
-    url.pathname = '/auth/login'
-    return NextResponse.redirect(url)
+    // Unauthenticated users: only allow auth pages
+    if (!user && !pathname.startsWith('/auth')) {
+      console.log(`[Middleware] No user, redirecting ${pathname} -> /auth/login`)
+      const url = request.nextUrl.clone()
+      url.pathname = '/auth/login'
+      return NextResponse.redirect(url)
+    }
+
+    // Authenticated users on auth pages: redirect to /chat
+    if (user && pathname.startsWith('/auth')) {
+      console.log(`[Middleware] User authenticated, redirecting ${pathname} -> /chat`)
+      const url = request.nextUrl.clone()
+      url.pathname = '/chat'
+      return NextResponse.redirect(url)
+    }
+
+    return supabaseResponse
+  } catch (error) {
+    console.error('[Middleware] Error getting user:', error)
+    // On error, allow the request through and let the page handle auth state
+    return supabaseResponse
   }
-
-  // Authenticated users on auth pages: redirect to /chat
-  if (user && pathname.startsWith('/auth')) {
-    console.log(`[Middleware] User authenticated, redirecting ${pathname} -> /chat`)
-    const url = request.nextUrl.clone()
-    url.pathname = '/chat'
-    return NextResponse.redirect(url)
-  }
-
-  return supabaseResponse
 }
