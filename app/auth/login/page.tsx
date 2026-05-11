@@ -170,10 +170,7 @@ export default function LoginPage() {
               disabled={isLoading}
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
-              className="w-full relative flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white overflow-hidden disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
-              style={{
-                background: "linear-gradient(135deg, oklch(0.65 0.2 250), oklch(0.6 0.22 200))",
-              }}
+              className="w-full relative flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white overflow-hidden disabled:opacity-60 disabled:cursor-not-allowed transition-opacity btn-gradient"
             >
               {isLoading ? (
                 <motion.div
