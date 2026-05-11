@@ -51,24 +51,37 @@ export default function RegisterPage() {
     }
 
     try {
-      console.log("[v0] Signup: Starting");
       const result = await signUp(email, password, displayName);
 
       if (result.error) {
-        console.log("[v0] Signup: Error -", result.error);
         setError(result.error);
         setIsLoading(false);
         return;
       }
 
-      console.log("[v0] Signup: Success, redirecting");
+      // After successful signup, listen for the session to be established on the client
       redirecting.current = true;
-      // Use router.push instead of window.location to allow Next.js to handle the navigation
-      router.push("/chat");
+      const supabase = createClient();
+      
+      // Set up a one-time listener for the next auth state change
+      let unsubscribe: (() => void) | null = null;
+      unsubscribe = supabase.auth.onAuthStateChange((event, session) => {
+        if (session && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
+          console.log("[Auth] Session detected, redirecting");
+          if (unsubscribe) unsubscribe();
+          router.push("/chat");
+        }
+      }).data.subscription?.unsubscribe || (() => {});
+      
+      // Fallback: if no session event after 1s, redirect anyway
+      const timeout = setTimeout(() => {
+        if (unsubscribe) unsubscribe();
+        router.push("/chat");
+      }, 1000);
+      
+      return () => clearTimeout(timeout);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "An unexpected error occurred.";
-      console.log("[v0] Signup: Exception -", errorMsg);
-      setError(errorMsg);
+      setError(err instanceof Error ? err.message : "An unexpected error occurred.");
       setIsLoading(false);
     }
   }, [email, password, displayName, router]);
