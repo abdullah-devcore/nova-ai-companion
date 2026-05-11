@@ -44,38 +44,52 @@ export default function LoginPage() {
     setError(null);
 
     try {
+      console.log("[LoginPage] Submitting signin for", email);
       const result = await signIn(email, password);
 
       if (result.error) {
+        console.error("[LoginPage] Signin failed:", result.error);
         setError(result.error);
         setIsLoading(false);
         return;
       }
 
+      console.log("[LoginPage] Signin successful, waiting for session");
       // After successful signin, listen for the session to be established on the client
       redirecting.current = true;
       const supabase = createClient();
       
       // Set up a one-time listener for the next auth state change
       let unsubscribe: (() => void) | null = null;
+      let timeoutId: NodeJS.Timeout | null = null;
+      
       unsubscribe = supabase.auth.onAuthStateChange((event, session) => {
+        console.log("[LoginPage] Auth state change:", event, "Session:", !!session);
         if (session && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
-          console.log("[Auth] Session detected, redirecting");
+          console.log("[LoginPage] Session detected, redirecting to /chat");
           if (unsubscribe) unsubscribe();
+          if (timeoutId) clearTimeout(timeoutId);
           router.push("/chat");
         }
       }).data.subscription?.unsubscribe || (() => {});
       
-      // Fallback: if no session event after 1s, redirect anyway
-      const timeout = setTimeout(() => {
+      // Fallback: if no session event after 2s, redirect anyway (handles edge cases)
+      timeoutId = setTimeout(() => {
+        console.log("[LoginPage] Timeout reached, redirecting anyway");
         if (unsubscribe) unsubscribe();
         router.push("/chat");
-      }, 1000);
+      }, 2000);
       
-      return () => clearTimeout(timeout);
+      return () => {
+        if (unsubscribe) unsubscribe();
+        if (timeoutId) clearTimeout(timeoutId);
+      };
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred.");
+      const errorMsg = err instanceof Error ? err.message : "An unexpected error occurred.";
+      console.error("[LoginPage] Exception:", errorMsg);
+      setError(errorMsg);
       setIsLoading(false);
+      redirecting.current = false;
     }
   }, [email, password, router]);
 

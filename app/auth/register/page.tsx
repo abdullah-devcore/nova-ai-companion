@@ -51,38 +51,52 @@ export default function RegisterPage() {
     }
 
     try {
+      console.log("[RegisterPage] Submitting signup for", email);
       const result = await signUp(email, password, displayName);
 
       if (result.error) {
+        console.error("[RegisterPage] Signup failed:", result.error);
         setError(result.error);
         setIsLoading(false);
         return;
       }
 
+      console.log("[RegisterPage] Signup successful, waiting for session");
       // After successful signup, listen for the session to be established on the client
       redirecting.current = true;
       const supabase = createClient();
       
       // Set up a one-time listener for the next auth state change
       let unsubscribe: (() => void) | null = null;
+      let timeoutId: NodeJS.Timeout | null = null;
+      
       unsubscribe = supabase.auth.onAuthStateChange((event, session) => {
+        console.log("[RegisterPage] Auth state change:", event, "Session:", !!session);
         if (session && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
-          console.log("[Auth] Session detected, redirecting");
+          console.log("[RegisterPage] Session detected, redirecting to /chat");
           if (unsubscribe) unsubscribe();
+          if (timeoutId) clearTimeout(timeoutId);
           router.push("/chat");
         }
       }).data.subscription?.unsubscribe || (() => {});
       
-      // Fallback: if no session event after 1s, redirect anyway
-      const timeout = setTimeout(() => {
+      // Fallback: if no session event after 2s, redirect anyway (handles edge cases)
+      timeoutId = setTimeout(() => {
+        console.log("[RegisterPage] Timeout reached, redirecting anyway");
         if (unsubscribe) unsubscribe();
         router.push("/chat");
-      }, 1000);
+      }, 2000);
       
-      return () => clearTimeout(timeout);
+      return () => {
+        if (unsubscribe) unsubscribe();
+        if (timeoutId) clearTimeout(timeoutId);
+      };
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred.");
+      const errorMsg = err instanceof Error ? err.message : "An unexpected error occurred.";
+      console.error("[RegisterPage] Exception:", errorMsg);
+      setError(errorMsg);
       setIsLoading(false);
+      redirecting.current = false;
     }
   }, [email, password, displayName, router]);
 
