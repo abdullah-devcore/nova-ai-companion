@@ -6,12 +6,10 @@ import { Eye, EyeOff, Mail, Lock, ArrowRight, Sparkles } from "lucide-react";
 import { AIOrb } from "@/components/ai-orb";
 import { FloatingGradients } from "@/components/floating-gradients";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "@/lib/actions/auth";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -20,7 +18,6 @@ export default function LoginPage() {
   const [checkingSession, setCheckingSession] = useState(true);
   const redirecting = useRef(false);
 
-  // Check if already logged in on mount
   useEffect(() => {
     let cancelled = false;
     const supabase = createClient();
@@ -28,10 +25,8 @@ export default function LoginPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled) return;
       if (session) {
-        console.log("[Login] Already authenticated, redirecting to /chat");
         window.location.replace("/chat");
       } else {
-        console.log("[Login] No session found, showing login form");
         setCheckingSession(false);
       }
     });
@@ -46,29 +41,19 @@ export default function LoginPage() {
     setIsLoading(true);
     setError(null);
 
-    console.log("[Login] Attempting sign in for:", email);
-
     try {
-      // Use server action for sign-in - this is more reliable than client-side
       const result = await signIn(email, password);
 
       if (result.error) {
-        console.error("[Login] Sign in error:", result.error);
         setError(result.error);
         setIsLoading(false);
         return;
       }
 
-      console.log("[Login] Sign in successful via server action");
-
       redirecting.current = true;
-      console.log("[Login] Redirecting to /chat");
-
-      // Hard navigation to ensure server sees the cookies
       window.location.replace("/chat");
     } catch (err) {
-      console.error("[Login] Unexpected error:", err);
-      setError(err instanceof Error ? err.message : "An unexpected error occurred. Please try again.");
+      setError(err instanceof Error ? err.message : "An unexpected error occurred.");
       setIsLoading(false);
     }
   }, [email, password]);
@@ -96,7 +81,6 @@ export default function LoginPage() {
         transition={{ duration: 0.5, ease: "easeOut" }}
         className="relative z-10 w-full max-w-md"
       >
-        {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <motion.div
             initial={{ scale: 0 }}
@@ -124,7 +108,6 @@ export default function LoginPage() {
           </motion.p>
         </div>
 
-        {/* Form card */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -132,7 +115,6 @@ export default function LoginPage() {
           className="glass-strong rounded-2xl p-6"
         >
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground/80">Email</label>
               <div className="relative">
@@ -149,7 +131,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Password */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground/80">Password</label>
               <div className="relative">
@@ -174,7 +155,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Error */}
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: -8 }}
@@ -185,7 +165,6 @@ export default function LoginPage() {
               </motion.div>
             )}
 
-            {/* Submit */}
             <motion.button
               type="submit"
               disabled={isLoading}
@@ -213,7 +192,6 @@ export default function LoginPage() {
           </form>
         </motion.div>
 
-        {/* Register link */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

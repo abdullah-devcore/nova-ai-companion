@@ -6,12 +6,10 @@ import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Sparkles } from "lucide-reac
 import { AIOrb } from "@/components/ai-orb";
 import { FloatingGradients } from "@/components/floating-gradients";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signUp } from "@/lib/actions/auth";
 
 export default function RegisterPage() {
-  const router = useRouter();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,7 +19,6 @@ export default function RegisterPage() {
   const [checkingSession, setCheckingSession] = useState(true);
   const redirecting = useRef(false);
 
-  // Check if already logged in on mount
   useEffect(() => {
     let cancelled = false;
     const supabase = createClient();
@@ -29,10 +26,8 @@ export default function RegisterPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled) return;
       if (session) {
-        console.log("[Register] Already authenticated, redirecting to /chat");
         window.location.replace("/chat");
       } else {
-        console.log("[Register] No session found, showing register form");
         setCheckingSession(false);
       }
     });
@@ -53,29 +48,19 @@ export default function RegisterPage() {
       return;
     }
 
-    console.log("[Register] Attempting sign up for:", email);
-
     try {
-      // Use server action for sign-up - this is more reliable than client-side
       const result = await signUp(email, password, displayName);
 
       if (result.error) {
-        console.error("[Register] Sign up error:", result.error);
         setError(result.error);
         setIsLoading(false);
         return;
       }
 
-      console.log("[Register] Sign up successful via server action");
-
       redirecting.current = true;
-      console.log("[Register] Redirecting to /chat");
-
-      // Hard navigation to ensure server sees the cookies
       window.location.replace("/chat");
     } catch (err) {
-      console.error("[Register] Unexpected error:", err);
-      setError(err instanceof Error ? err.message : "An unexpected error occurred. Please try again.");
+      setError(err instanceof Error ? err.message : "An unexpected error occurred.");
       setIsLoading(false);
     }
   }, [email, password, displayName]);
@@ -103,7 +88,6 @@ export default function RegisterPage() {
         transition={{ duration: 0.5, ease: "easeOut" }}
         className="relative z-10 w-full max-w-md"
       >
-        {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <motion.div
             initial={{ scale: 0 }}
@@ -131,7 +115,6 @@ export default function RegisterPage() {
           </motion.p>
         </div>
 
-        {/* Form card */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -139,7 +122,6 @@ export default function RegisterPage() {
           className="glass-strong rounded-2xl p-6"
         >
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Name */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground/80">Your name</label>
               <div className="relative">
@@ -156,7 +138,6 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Email */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground/80">Email</label>
               <div className="relative">
@@ -173,7 +154,6 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Password */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground/80">Password</label>
               <div className="relative">
@@ -198,7 +178,6 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Error */}
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: -8 }}
@@ -209,7 +188,6 @@ export default function RegisterPage() {
               </motion.div>
             )}
 
-            {/* Submit */}
             <motion.button
               type="submit"
               disabled={isLoading}
@@ -237,7 +215,6 @@ export default function RegisterPage() {
           </form>
         </motion.div>
 
-        {/* Login link */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
