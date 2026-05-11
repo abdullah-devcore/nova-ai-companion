@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 export async function signUp(email: string, password: string, displayName: string) {
   const supabase = await createClient();
 
+  console.log("[Auth] signUp: Starting for", email);
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -15,24 +16,47 @@ export async function signUp(email: string, password: string, displayName: strin
   });
 
   if (error) {
+    console.log("[Auth] signUp: Failed -", error.message);
     return { error: error.message };
   }
 
+  // Try to create profile on signup
+  if (data.user) {
+    console.log("[Auth] signUp: Creating profile for", data.user.id);
+    try {
+      await supabase
+        .from("profiles")
+        .insert({
+          id: data.user.id,
+          email: data.user.email,
+          display_name: displayName,
+          created_at: new Date().toISOString(),
+        });
+      console.log("[Auth] signUp: Profile created");
+    } catch (err) {
+      console.log("[Auth] signUp: Profile creation error (non-fatal)", err);
+    }
+  }
+
+  console.log("[Auth] signUp: Success");
   return { data, error: null };
 }
 
 export async function signIn(email: string, password: string) {
   const supabase = await createClient();
 
+  console.log("[Auth] signIn: Starting for", email);
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
   if (error) {
+    console.log("[Auth] signIn: Failed -", error.message);
     return { error: error.message };
   }
 
+  console.log("[Auth] signIn: Success");
   return { data, error: null };
 }
 

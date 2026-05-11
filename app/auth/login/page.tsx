@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Mail, Lock, ArrowRight, Sparkles } from "lucide-react";
 import { AIOrb } from "@/components/ai-orb";
@@ -10,6 +11,7 @@ import Link from "next/link";
 import { signIn } from "@/lib/actions/auth";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -25,14 +27,14 @@ export default function LoginPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled) return;
       if (session) {
-        window.location.replace("/chat");
+        router.replace("/chat");
       } else {
         setCheckingSession(false);
       }
     });
 
     return () => { cancelled = true; };
-  }, []);
+  }, [router]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,21 +44,28 @@ export default function LoginPage() {
     setError(null);
 
     try {
+      console.log("[v0] Signin: Starting");
       const result = await signIn(email, password);
 
       if (result.error) {
+        console.log("[v0] Signin: Error -", result.error);
         setError(result.error);
         setIsLoading(false);
         return;
       }
 
+      console.log("[v0] Signin: Success, redirecting");
       redirecting.current = true;
-      window.location.replace("/chat");
+      // Use router.push instead of window.location to allow Next.js to handle the navigation
+      // and ensure the auth state is properly synced
+      router.push("/chat");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred.");
+      const errorMsg = err instanceof Error ? err.message : "An unexpected error occurred.";
+      console.log("[v0] Signin: Exception -", errorMsg);
+      setError(errorMsg);
       setIsLoading(false);
     }
-  }, [email, password]);
+  }, [email, password, router]);
 
   if (checkingSession) {
     return (
