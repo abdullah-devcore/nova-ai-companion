@@ -107,7 +107,7 @@ export function ChatInterface({ initialChats, user }: ChatInterfaceProps) {
     }
   }, [activeChat]);
 
-  const handleSendMessage = useCallback(async (content: string) => {
+  const handleSendMessage = useCallback(async (content: string, files?: File[]) => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -129,17 +129,25 @@ export function ChatInterface({ initialChats, user }: ChatInterfaceProps) {
     }
 
     const tempId = crypto.randomUUID();
-    const userMessage: LocalMessage = { id: tempId, role: "user", content };
+    let userContent = content;
+    
+    // Handle file uploads
+    if (files && files.length > 0) {
+      const fileInfo = files.map(f => `[File: ${f.name}]`).join(" ");
+      userContent = content ? `${content}\n${fileInfo}` : fileInfo;
+    }
+
+    const userMessage: LocalMessage = { id: tempId, role: "user", content: userContent };
     setMessages((prev) => [...prev, userMessage]);
     setIsTyping(true);
 
-    const savedMsg = await addMessage(chatId, "user", content);
+    const savedMsg = await addMessage(chatId, "user", userContent);
     if (savedMsg) {
       setMessages((prev) => prev.map((m) => m.id === tempId ? { ...m, id: savedMsg.id } : m));
     }
 
     if (isNewChat || chats.find((c) => c.id === chatId)?.title === "New conversation") {
-      const title = await generateChatTitle(content);
+      const title = await generateChatTitle(userContent);
       await updateChatTitle(chatId, title);
       setChats((prev) => prev.map((c) => c.id === chatId ? { ...c, title } : c));
     }
