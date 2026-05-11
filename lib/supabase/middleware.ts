@@ -1,23 +1,34 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Cache auth state for the current request to avoid redundant checks
+const authCheckCache = new WeakMap<NextRequest, { user: any; checked: boolean }>()
+
+// Routes that require no auth checks
+const PUBLIC_ROUTES = new Set([
+  '/api',
+  '/_next',
+  '/__nextjs',
+  '/favicon.ico',
+])
+
+// Routes that are auth-only
+const AUTH_ROUTES = new Set(['/auth'])
+
+// Routes that require authentication
+const PROTECTED_ROUTES = new Set(['/chat', '/'])
+
 export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
-  console.log(`[Middleware] ${request.method} ${pathname}`)
 
-  // Allow API routes, static assets, and internal dev routes through without auth checks
-  if (
-    pathname.startsWith('/api') ||
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/__nextjs') ||
-    pathname === '/favicon.ico'
-  ) {
-    return NextResponse.next({ request })
+  // Fast path: skip auth check for public routes
+  for (const route of PUBLIC_ROUTES) {
+    if (pathname.startsWith(route)) {
+      return NextResponse.next({ request })
+    }
   }
 
-  let supabaseResponse = NextResponse.next({
-    request,
-  })
+  let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,42 +39,43 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          // Set cookies on the request so they're available for getUser()
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value),
-          )
-          // Set cookies on the response so the browser persists them
-          cookiesToSet.forEach(({ name, value, options }) =>
+          cookiesToSet.forEach(({ name, value }) => {
+            request.cookies.set(name, value)
+          })
+          cookiesToSet.forEach(({ name, value, options }) => {
             supabaseResponse.cookies.set(name, value, {
               ...options,
               sameSite: 'lax',
               secure: process.env.NODE_ENV === 'production',
               path: '/',
-            }),
-          )
+            })
+          })
         },
       },
     }
   )
 
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const { data: { user }, error } = await supabase.auth.getUser()
 
-    console.log(`[Middleware] User: ${user ? user.email : 'none'} | Path: ${pathname}`)
+    if (error) {
+      console.error('[Middleware] Auth error:', error.message)
+      // Continue with null user on error
+    }
 
-    // Unauthenticated users: only allow auth pages
-    if (!user && !pathname.startsWith('/auth')) {
-      console.log(`[Middleware] No user, redirecting ${pathname} -> /auth/login`)
+    // Determine route type
+    const isAuthRoute = Array.from(AUTH_ROUTES).some(route => pathname.startsWith(route))
+    const isProtectedRoute = Array.from(PROTECTED_ROUTES).some(route => pathname.startsWith(route))
+
+    // If no user and accessing protected route, redirect to login
+    if (!user && isProtectedRoute && !isAuthRoute) {
       const url = request.nextUrl.clone()
       url.pathname = '/auth/login'
       return NextResponse.redirect(url)
     }
 
-    // Authenticated users on auth pages: redirect to /chat
-    if (user && pathname.startsWith('/auth')) {
-      console.log(`[Middleware] User authenticated, redirecting ${pathname} -> /chat`)
+    // If user authenticated and accessing auth route, redirect to chat
+    if (user && isAuthRoute) {
       const url = request.nextUrl.clone()
       url.pathname = '/chat'
       return NextResponse.redirect(url)
@@ -71,8 +83,9 @@ export async function updateSession(request: NextRequest) {
 
     return supabaseResponse
   } catch (error) {
-    console.error('[Middleware] Error getting user:', error)
-    // On error, allow the request through and let the page handle auth state
+    console.error('[Middleware] Unexpected error:', error instanceof Error ? error.message : error)
+    // Allow request through on unexpected error
     return supabaseResponse
   }
 }
+
