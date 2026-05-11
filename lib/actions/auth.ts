@@ -1,12 +1,14 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createProfile } from "@/lib/database/queries";
 import { redirect } from "next/navigation";
 
 export async function signUp(email: string, password: string, displayName: string) {
   const supabase = await createClient();
 
   console.log("[Auth] signUp: Starting for", email);
+  
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -20,21 +22,19 @@ export async function signUp(email: string, password: string, displayName: strin
     return { error: error.message };
   }
 
-  // Try to create profile on signup
+  // Create profile immediately after signup
   if (data.user) {
     console.log("[Auth] signUp: Creating profile for", data.user.id);
     try {
-      await supabase
-        .from("profiles")
-        .insert({
-          id: data.user.id,
-          email: data.user.email,
-          display_name: displayName,
-          created_at: new Date().toISOString(),
-        });
-      console.log("[Auth] signUp: Profile created");
+      await createProfile({
+        email: data.user.email!,
+        username: displayName,
+      });
+      console.log("[Auth] signUp: Profile created successfully");
     } catch (err) {
-      console.log("[Auth] signUp: Profile creation error (non-fatal)", err);
+      const errorMsg = err instanceof Error ? err.message : 'Profile creation failed';
+      console.error("[Auth] signUp: Profile creation error:", errorMsg);
+      // Don't fail the signup if profile creation fails - user can still use the app
     }
   }
 
@@ -46,6 +46,7 @@ export async function signIn(email: string, password: string) {
   const supabase = await createClient();
 
   console.log("[Auth] signIn: Starting for", email);
+  
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -56,32 +57,49 @@ export async function signIn(email: string, password: string) {
     return { error: error.message };
   }
 
-  console.log("[Auth] signIn: Success");
+  console.log("[Auth] signIn: Success for", data.user?.email);
   return { data, error: null };
 }
 
 export async function signOut() {
   const supabase = await createClient();
-  await supabase.auth.signOut();
+  
+  console.log("[Auth] signOut: Starting");
+  const { error } = await supabase.auth.signOut();
+  
+  if (error) {
+    console.error("[Auth] signOut: Error -", error.message);
+  } else {
+    console.log("[Auth] signOut: Success");
+  }
+  
   redirect("/auth/login");
 }
 
 export async function getUser() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error } = await supabase.auth.getUser();
+  
+  if (error) {
+    console.error("[Auth] getUser: Error -", error.message);
+    return null;
+  }
+  
   return user;
 }
 
-export async function getProfile() {
+export async function refreshSession() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  return data;
+  
+  console.log("[Auth] Refreshing session");
+  const { data, error } = await supabase.auth.refreshSession();
+  
+  if (error) {
+    console.error("[Auth] Refresh failed:", error.message);
+    return { error: error.message };
+  }
+  
+  console.log("[Auth] Session refreshed");
+  return { data, error: null };
 }
+

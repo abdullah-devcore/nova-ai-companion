@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ChatInterface } from "@/components/chat-interface";
 import { getChats } from "@/lib/actions/chat";
-import { getProfile } from "@/lib/actions/auth";
+import { getProfile } from "@/lib/database/queries";
 
 export default async function ChatPage() {
   const supabase = await createClient();
@@ -20,12 +20,13 @@ export default async function ChatPage() {
     getProfile(),
   ]);
 
-  console.log("[ChatPage] Rendering chat for:", user.email, "| Profile:", profile?.display_name || "none");
+  console.log("[ChatPage] Rendering chat for:", user.email, "| Profile:", profile?.username || "none");
 
   return (
     <ChatInterface
       initialChats={chats}
-      user={{ id: user.id, email: user.email || "", displayName: profile?.display_name || user.email || "" }}
+      user={{ id: user.id, email: user.email || "", displayName: profile?.username || user.email || "" }}
     />
   );
 }
+
