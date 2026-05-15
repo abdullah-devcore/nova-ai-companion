@@ -1,9 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// Cache auth state for the current request to avoid redundant checks
-const authCheckCache = new WeakMap<NextRequest, { user: any; checked: boolean }>()
-
 // Routes that require no auth checks
 const PUBLIC_ROUTES = new Set([
   '/api',
@@ -58,9 +55,9 @@ export async function updateSession(request: NextRequest) {
   try {
     const { data: { user }, error } = await supabase.auth.getUser()
 
-    if (error) {
+    // Only log errors if it's a real error (not just missing auth)
+    if (error && error.message !== 'Auth session missing!') {
       console.error('[Middleware] Auth error:', error.message)
-      // Continue with null user on error
     }
 
     // Determine route type
@@ -83,8 +80,8 @@ export async function updateSession(request: NextRequest) {
 
     return supabaseResponse
   } catch (error) {
-    console.error('[Middleware] Unexpected error:', error instanceof Error ? error.message : error)
-    // Allow request through on unexpected error
+    // Silent catch - don't log errors that don't affect functionality
+    // Allow request through on error
     return supabaseResponse
   }
 }
