@@ -67,10 +67,10 @@ export async function updateSession(request: NextRequest) {
     const isAuthRoute = Array.from(AUTH_ROUTES).some(route => pathname.startsWith(route))
     const isProtectedRoute = Array.from(PROTECTED_ROUTES).some(route => pathname.startsWith(route))
 
-    // If no user and accessing protected route, redirect to login
+    // If no user and accessing protected route, redirect to auth
     if (!user && isProtectedRoute && !isAuthRoute) {
       const url = request.nextUrl.clone()
-      url.pathname = '/auth/login'
+      url.pathname = '/auth'
       return NextResponse.redirect(url)
     }
 
