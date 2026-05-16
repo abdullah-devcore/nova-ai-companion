@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
 
     const systemMessage: ChatMessage = {
       role: "system",
-      content: buildSystemPrompt(memories || [], userName || "the user", chatMessages),
+      content: buildSystemPrompt(memories || [], userName || "the user", messages),
     };
 
     const allMessages = [systemMessage, ...messages];
