@@ -4,6 +4,13 @@ import { motion } from "framer-motion";
 import { User, Copy, Check } from "lucide-react";
 import { AIOrb } from "./ai-orb";
 import { useState, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeKatex from "rehype-katex";
+import remarkMath from "remark-math";
+import hljs from "highlight.js";
+import "highlight.js/styles/atom-one-dark.css";
+import "katex/dist/katex.min.css";
 
 interface ChatMessageProps {
   role: "user" | "assistant";
@@ -20,10 +27,19 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
     setTimeout(() => setCopied(false), 2000);
   }, [code]);
 
+  let highlighted = code;
+  if (language) {
+    try {
+      highlighted = hljs.highlight(code, { language, ignoreIllegals: true }).value;
+    } catch {
+      highlighted = hljs.highlightAuto(code).value;
+    }
+  }
+
   return (
-    <div className="relative group my-2 rounded-xl overflow-hidden border border-border/50">
-      <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border/50">
-        <span className="text-xs text-muted-foreground font-mono">{language || "code"}</span>
+    <div className="relative group my-3 rounded-lg overflow-hidden border border-border/50 bg-muted/20">
+      <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border/30">
+        <span className="text-xs text-muted-foreground font-mono font-semibold uppercase tracking-wide">{language || "code"}</span>
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={handleCopy}
@@ -33,40 +49,11 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
           {copied ? "Copied!" : "Copy"}
         </motion.button>
       </div>
-      <pre className="overflow-x-auto p-4 text-sm bg-muted/20 text-foreground font-mono leading-relaxed">
-        <code>{code}</code>
+      <pre className="overflow-x-auto p-4 text-sm text-foreground font-mono leading-relaxed">
+        <code dangerouslySetInnerHTML={{ __html: highlighted }} />
       </pre>
     </div>
   );
-}
-
-function renderContent(content: string) {
-  const parts = content.split(/(```[\s\S]*?```)/g);
-
-  return parts.map((part, i) => {
-    if (part.startsWith("```") && part.endsWith("```")) {
-      const lines = part.slice(3, -3).split("\n");
-      const language = lines[0].trim();
-      const code = lines.slice(1).join("\n");
-      return <CodeBlock key={i} code={code} language={language || undefined} />;
-    }
-
-    return (
-      <span key={i}>
-        {part.split("\n").map((line, j) => {
-          const boldProcessed = line.replace(/\*\*(.*?)\*\*/g, (_, text) => `<strong>${text}</strong>`);
-          const inlineCodeProcessed = boldProcessed.replace(/`([^`]+)`/g, (_, text) => `<code class="bg-muted/40 px-1 py-0.5 rounded text-sm font-mono">${text}</code>`);
-
-          return (
-            <span key={j}>
-              {j > 0 && <br />}
-              <span dangerouslySetInnerHTML={{ __html: inlineCodeProcessed }} />
-            </span>
-          );
-        })}
-      </span>
-    );
-  });
 }
 
 export function ChatMessage({ role, content, isStreaming = false }: ChatMessageProps) {
@@ -111,8 +98,63 @@ export function ChatMessage({ role, content, isStreaming = false }: ChatMessageP
           style={!isAssistant ? { background: "linear-gradient(135deg, oklch(0.65 0.2 250 / 0.9), oklch(0.6 0.22 200 / 0.9))" } : undefined}
         >
           {isAssistant ? (
-            <div className="space-y-1">
-              {renderContent(content)}
+            <div className="space-y-2 markdown-content">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
+                components={{
+                  code({ inline, className, children, ...props }: any) {
+                    const language = className?.replace(/language-/, "");
+                    const code = String(children).replace(/\n$/, "");
+
+                    if (inline) {
+                      return (
+                        <code className="bg-muted/40 px-1.5 py-0.5 rounded text-xs font-mono text-accent" {...props}>
+                          {code}
+                        </code>
+                      );
+                    }
+
+                    return <CodeBlock code={code} language={language} />;
+                  },
+                  pre({ children }: any) {
+                    return <>{children}</>;
+                  },
+                  h1: ({ children }: any) => <h1 className="text-xl font-bold mt-4 mb-2">{children}</h1>,
+                  h2: ({ children }: any) => <h2 className="text-lg font-bold mt-3 mb-2">{children}</h2>,
+                  h3: ({ children }: any) => <h3 className="text-base font-bold mt-2 mb-1">{children}</h3>,
+                  strong: ({ children }: any) => <strong className="font-semibold text-foreground">{children}</strong>,
+                  em: ({ children }: any) => <em className="italic text-muted-foreground">{children}</em>,
+                  ul: ({ children }: any) => <ul className="list-disc list-inside space-y-1 my-2 ml-2">{children}</ul>,
+                  ol: ({ children }: any) => <ol className="list-decimal list-inside space-y-1 my-2 ml-2">{children}</ol>,
+                  li: ({ children }: any) => <li className="ml-2">{children}</li>,
+                  blockquote: ({ children }: any) => (
+                    <blockquote className="border-l-4 border-accent/50 pl-4 py-1 my-2 text-muted-foreground italic">
+                      {children}
+                    </blockquote>
+                  ),
+                  a: ({ href, children }: any) => (
+                    <a href={href} className="text-accent hover:underline" target="_blank" rel="noopener noreferrer">
+                      {children}
+                    </a>
+                  ),
+                  table: ({ children }: any) => (
+                    <div className="overflow-x-auto my-2 border border-border/30 rounded-lg">
+                      <table className="w-full text-sm">{children}</table>
+                    </div>
+                  ),
+                  th: ({ children }: any) => (
+                    <th className="px-3 py-2 text-left font-semibold bg-muted/50 border-b border-border/30">
+                      {children}
+                    </th>
+                  ),
+                  td: ({ children }: any) => (
+                    <td className="px-3 py-2 border-b border-border/30">{children}</td>
+                  ),
+                }}
+              >
+                {content}
+              </ReactMarkdown>
               {isStreaming && (
                 <motion.span
                   animate={{ opacity: [0, 1, 0] }}
