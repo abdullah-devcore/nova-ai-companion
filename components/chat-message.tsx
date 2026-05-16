@@ -3,13 +3,11 @@
 import { motion } from "framer-motion";
 import { User, Copy, Check } from "lucide-react";
 import { AIOrb } from "./ai-orb";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
-import hljs from "highlight.js";
-import "highlight.js/styles/atom-one-dark.css";
 import "katex/dist/katex.min.css";
 
 interface ChatMessageProps {
@@ -20,21 +18,32 @@ interface ChatMessageProps {
 
 function CodeBlock({ code, language }: { code: string; language?: string }) {
   const [copied, setCopied] = useState(false);
+  const [highlighted, setHighlighted] = useState(code);
+
+  useEffect(() => {
+    // Dynamically import highlight.js only when needed
+    if (language && typeof window !== "undefined") {
+      import("highlight.js").then((hljs) => {
+        try {
+          const result = hljs.default.highlight(code, { language, ignoreIllegals: true });
+          setHighlighted(result.value);
+        } catch {
+          try {
+            const result = hljs.default.highlightAuto(code);
+            setHighlighted(result.value);
+          } catch {
+            setHighlighted(code);
+          }
+        }
+      }).catch(() => setHighlighted(code));
+    }
+  }, [code, language]);
 
   const handleCopy = useCallback(async () => {
     await navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, [code]);
-
-  let highlighted = code;
-  if (language) {
-    try {
-      highlighted = hljs.highlight(code, { language, ignoreIllegals: true }).value;
-    } catch {
-      highlighted = hljs.highlightAuto(code).value;
-    }
-  }
 
   return (
     <div className="relative group my-3 rounded-lg overflow-hidden border border-border/50 bg-muted/20">
