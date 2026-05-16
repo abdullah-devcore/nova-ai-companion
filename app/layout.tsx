@@ -87,21 +87,6 @@ export default function RootLayout({
         <meta name="msapplication-TileColor" content="#0d0d12" />
         <meta name="msapplication-tap-highlight" content="no" />
         <meta name="theme-color" content="#0d0d12" />
-        {/* Safe area insets for notched devices */}
-        <style>{`
-          :root {
-            --safe-area-inset-top: env(safe-area-inset-top, 0);
-            --safe-area-inset-left: env(safe-area-inset-left, 0);
-            --safe-area-inset-right: env(safe-area-inset-right, 0);
-            --safe-area-inset-bottom: env(safe-area-inset-bottom, 0);
-          }
-          body {
-            padding-top: var(--safe-area-inset-top);
-            padding-left: var(--safe-area-inset-left);
-            padding-right: var(--safe-area-inset-right);
-            padding-bottom: var(--safe-area-inset-bottom);
-          }
-        `}</style>
       </head>
       <body className="font-sans antialiased">
         <AuthProvider>
