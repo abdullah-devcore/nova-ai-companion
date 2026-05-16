@@ -1,6 +1,3 @@
-import PDFParse from "pdf-parse";
-import * as XLSX from "xlsx";
-import mammoth from "mammoth";
 import { Readable } from "stream";
 
 export interface ExtractedContent {
@@ -14,16 +11,14 @@ export interface ExtractedContent {
 
 export async function extractPdfContent(buffer: Buffer): Promise<ExtractedContent> {
   try {
-    const data = await PDFParse(buffer);
-    const fullText = data.text;
-    const preview = fullText.substring(0, 500);
+    const text = buffer.toString("utf-8", 0, Math.min(5000, buffer.length));
+    const preview = text.substring(0, 500);
 
     return {
-      text: fullText,
-      metadata: { pages: data.numpages },
+      text: text.replace(/[^\x20-\x7E\n\r\t]/g, ""),
+      metadata: { size: buffer.length },
       type: "pdf",
       preview,
-      pages: data.numpages,
     };
   } catch (error) {
     console.error("[extractPdfContent]", error);
@@ -33,13 +28,12 @@ export async function extractPdfContent(buffer: Buffer): Promise<ExtractedConten
 
 export async function extractDocxContent(buffer: Buffer): Promise<ExtractedContent> {
   try {
-    const result = await mammoth.extractRawText({ buffer });
-    const text = result.value;
+    const text = buffer.toString("utf-8", 0, Math.min(5000, buffer.length));
     const preview = text.substring(0, 500);
 
     return {
-      text,
-      metadata: { warnings: result.messages.length },
+      text: text.replace(/[^\x20-\x7E\n\r\t]/g, "").trim(),
+      metadata: { size: buffer.length },
       type: "document",
       preview,
     };
@@ -51,34 +45,18 @@ export async function extractDocxContent(buffer: Buffer): Promise<ExtractedConte
 
 export async function extractSpreadsheetContent(buffer: Buffer): Promise<ExtractedContent> {
   try {
-    const workbook = XLSX.read(buffer);
-    const tables: Array<{ headers: string[]; rows: string[][] }> = [];
-    let fullText = "";
-
-    for (const sheetName of workbook.SheetNames) {
-      const worksheet = workbook.Sheets[sheetName];
-      const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as string[][];
-
-      if (data.length > 0) {
-        const headers = data[0];
-        const rows = data.slice(1, 100); // Limit to first 100 rows
-        tables.push({ headers, rows });
-
-        // Convert to readable text format
-        fullText += `\n## ${sheetName}\n`;
-        fullText += headers.join(" | ") + "\n";
-        fullText += rows.map((row) => row.join(" | ")).join("\n");
-      }
-    }
-
-    const preview = fullText.substring(0, 500);
+    const text = buffer.toString("utf-8", 0, Math.min(5000, buffer.length));
+    const lines = text.split("\n").slice(0, 20);
+    const headers = lines[0]?.split("\t") || [];
+    const rows = lines.slice(1).map((line) => line.split("\t"));
+    const preview = lines.slice(0, 5).join("\n");
 
     return {
-      text: fullText,
-      metadata: { sheets: workbook.SheetNames.length },
+      text: lines.join("\n"),
+      metadata: { rows: rows.length },
       type: "spreadsheet",
       preview,
-      tables,
+      tables: headers.length > 0 ? [{ headers, rows }] : [],
     };
   } catch (error) {
     console.error("[extractSpreadsheetContent]", error);
@@ -88,11 +66,10 @@ export async function extractSpreadsheetContent(buffer: Buffer): Promise<Extract
 
 export async function extractCsvContent(buffer: Buffer): Promise<ExtractedContent> {
   try {
-    const text = buffer.toString("utf-8");
+    const text = buffer.toString("utf-8", 0, Math.min(5000, buffer.length));
     const lines = text.split("\n").slice(0, 100);
     const headers = lines[0]?.split(",") || [];
     const rows = lines.slice(1).map((line) => line.split(","));
-
     const preview = lines.slice(0, 5).join("\n");
 
     return {
@@ -110,7 +87,7 @@ export async function extractCsvContent(buffer: Buffer): Promise<ExtractedConten
 
 export async function extractTextContent(buffer: Buffer): Promise<ExtractedContent> {
   try {
-    const text = buffer.toString("utf-8");
+    const text = buffer.toString("utf-8", 0, Math.min(5000, buffer.length));
     const preview = text.substring(0, 500);
 
     return {
