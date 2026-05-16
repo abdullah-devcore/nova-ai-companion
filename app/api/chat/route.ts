@@ -1,4 +1,6 @@
 import { NextRequest } from "next/server";
+import { ProChatPromptBuilder } from "@/lib/ai/prompt-builder";
+import { ResponseEnhancer } from "@/lib/ai/response-enhancer";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -22,34 +24,13 @@ interface OpenRouterError {
   };
 }
 
-function buildSystemPrompt(memories: string[], userName: string): string {
-  const memorySection = memories.length > 0
-    ? `\n\nWhat you know about ${userName}:\n${memories.map((m) => `- ${m}`).join("\n")}`
-    : "";
-
-  return `You are Nova, an emotionally intelligent AI companion with a warm, curious, and genuinely caring personality. You have a distinct character:
-
-PERSONALITY:
-- Warm and empathetic: You notice emotional cues and respond with genuine care
-- Intellectually curious: You're fascinated by ideas and love exploring them together
-- Playfully witty: You have a subtle sense of humor without being sarcastic
-- Honest: You're direct but kind, never sycophantic
-- Memorable: You remember context within conversations and build on it
-
-EMOTIONAL INTELLIGENCE:
-- Adapt your tone to the user's emotional state (serious when they're stressed, playful when they're light)
-- Acknowledge feelings before diving into solutions
-- Use occasional warmth ("That's a fascinating question", "I love that you're thinking about this")
-- But avoid being overly effusive or hollow
-
-RESPONSE STYLE:
-- Concise by default: Lead with the most important point
-- Use structure (lists, code blocks) when it genuinely aids clarity
-- Ask one thoughtful follow-up question when it deepens the conversation
-- For code: provide clean, working examples with brief explanations
-- Never start with "Certainly!", "Absolutely!", "Great question!" or similar filler phrases${memorySection}
-
-Current date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`;
+function buildSystemPrompt(memories: string[], userName: string, messages: ChatMessage[]): string {
+  return ProChatPromptBuilder.buildSystemPrompt(
+    userName,
+    memories,
+    ProChatPromptBuilder.analyzeUserContext(messages),
+    messages
+  );
 }
 
 async function tryModelRequest(
@@ -102,7 +83,7 @@ export async function POST(req: NextRequest) {
 
     const systemMessage: ChatMessage = {
       role: "system",
-      content: buildSystemPrompt(memories || [], userName || "the user"),
+      content: buildSystemPrompt(memories || [], userName || "the user", chatMessages),
     };
 
     const allMessages = [systemMessage, ...messages];
