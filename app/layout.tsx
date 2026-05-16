@@ -28,6 +28,7 @@ export const metadata: Metadata = {
   title: 'Nova AI - Your Intelligent Companion',
   description: 'Experience the future of AI conversation with Nova - emotionally intelligent, lightning fast, and beautifully designed.',
   generator: 'v0.app',
+  manifest: '/manifest.json',
   icons: {
     icon: [
       {
@@ -45,14 +46,26 @@ export const metadata: Metadata = {
     ],
     apple: '/apple-icon.png',
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Nova AI',
+  },
+  other: {
+    'mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-status-bar-style': 'black-translucent',
+    'apple-mobile-web-app-title': 'Nova AI',
+  },
 }
 
 export const viewport: Viewport = {
   themeColor: '#0d0d12',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  userScalable: true,
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({
@@ -62,6 +75,34 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${geistMono.variable} ${firaCode.variable} bg-background`}>
+      <head>
+        <meta name="application-name" content="Nova AI" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Nova AI" />
+        <meta name="description" content="Premium AI chat with file handling, voice, memory & organization" />
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="msapplication-config" content="/browserconfig.xml" />
+        <meta name="msapplication-TileColor" content="#0d0d12" />
+        <meta name="msapplication-tap-highlight" content="no" />
+        <meta name="theme-color" content="#0d0d12" />
+        {/* Safe area insets for notched devices */}
+        <style>{`
+          :root {
+            --safe-area-inset-top: env(safe-area-inset-top, 0);
+            --safe-area-inset-left: env(safe-area-inset-left, 0);
+            --safe-area-inset-right: env(safe-area-inset-right, 0);
+            --safe-area-inset-bottom: env(safe-area-inset-bottom, 0);
+          }
+          body {
+            padding-top: var(--safe-area-inset-top);
+            padding-left: var(--safe-area-inset-left);
+            padding-right: var(--safe-area-inset-right);
+            padding-bottom: var(--safe-area-inset-bottom);
+          }
+        `}</style>
+      </head>
       <body className="font-sans antialiased">
         <AuthProvider>
           {children}

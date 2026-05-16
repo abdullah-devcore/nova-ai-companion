@@ -1,0 +1,43 @@
+export default function OfflineePage() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="text-center max-w-md">
+        <div className="mb-6">
+          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
+            <svg
+              className="w-8 h-8 text-muted-foreground"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"
+              />
+            </svg>
+          </div>
+        </div>
+
+        <h1 className="text-2xl font-bold text-foreground mb-2">You&apos;re Offline</h1>
+        <p className="text-muted-foreground mb-6">
+          Nova AI is available offline. Your recent conversations are cached and ready to view.
+        </p>
+
+        <div className="space-y-3">
+          <button
+            onClick={() => window.location.href = "/chat"}
+            className="w-full px-4 py-3 rounded-lg bg-accent text-white font-medium hover:bg-accent/90 transition-colors"
+          >
+            View Cached Chats
+          </button>
+
+          <p className="text-xs text-muted-foreground pt-4">
+            To send new messages, you'll need to reconnect to the internet.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
