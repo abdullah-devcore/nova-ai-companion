@@ -1,11 +1,14 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, MessageSquare, Settings, Trash2, X, LogOut } from "lucide-react";
+import { Plus, MessageSquare, Settings, Trash2, X, LogOut, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AIOrb } from "./ai-orb";
+import { ChatContextMenu } from "./chat-context-menu";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { updateChatTitle } from "@/lib/actions/chat";
 
 interface Chat {
   id: string;
@@ -32,6 +35,7 @@ interface ChatSidebarProps {
   onDeleteChat: (id: string) => void;
   onOpenSettings: () => void;
   user: User;
+  onRenameChat?: (id: string, title: string) => void;
 }
 
 export function ChatSidebar({
@@ -46,7 +50,9 @@ export function ChatSidebar({
   onDeleteChat,
   onOpenSettings,
   user,
+  onRenameChat,
 }: ChatSidebarProps) {
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; chatId: string; chatTitle: string } | null>(null);
   return (
     <>
       {/* Mobile backdrop */}
@@ -203,6 +209,15 @@ function SidebarContent({
               <motion.button
                 whileHover={{ x: 4 }}
                 onClick={() => onSelectChat(chat.id)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setContextMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    chatId: chat.id,
+                    chatTitle: chat.title,
+                  });
+                }}
                 className={`
                   w-full text-left p-3 rounded-xl mb-1 transition-colors
                   ${activeChat === chat.id 
@@ -222,22 +237,28 @@ function SidebarContent({
                 </div>
               </motion.button>
 
-              {/* Delete button */}
+              {/* Context menu button */}
               <motion.button
                 initial={{ opacity: 0, scale: 0.8 }}
                 whileHover={{ scale: 1.1 }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDeleteChat(chat.id);
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setContextMenu({
+                    x: rect.right - 200,
+                    y: rect.bottom + 4,
+                    chatId: chat.id,
+                    chatTitle: chat.title,
+                  });
                 }}
                 className="
                   absolute right-2 top-1/2 -translate-y-1/2
                   opacity-0 group-hover:opacity-100 transition-opacity
-                  p-1.5 rounded-lg hover:bg-destructive/20 text-muted-foreground
-                  hover:text-destructive
+                  p-1.5 rounded-lg hover:bg-secondary text-muted-foreground
+                  hover:text-foreground
                 "
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <MoreVertical className="w-4 h-4" />
               </motion.button>
             </motion.div>
           ))}
@@ -290,6 +311,28 @@ function SidebarContent({
           <span className="text-sm">Sign out</span>
         </motion.button>
       </div>
+
+      {/* Context Menu */}
+      <AnimatePresence>
+        {contextMenu && (
+          <ChatContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            chatId={contextMenu.chatId}
+            chatTitle={contextMenu.chatTitle}
+            onRename={async (id, newTitle) => {
+              try {
+                await updateChatTitle(id, newTitle);
+                onRenameChat?.(id, newTitle);
+              } catch (error) {
+                console.error("[Sidebar] Rename error:", error);
+              }
+            }}
+            onDelete={onDeleteChat}
+            onClose={() => setContextMenu(null)}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }
