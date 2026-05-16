@@ -150,6 +150,27 @@ export function ChatInterface({ initialChats, user }: ChatInterfaceProps) {
       const title = await generateChatTitle(userContent);
       await updateChatTitle(chatId, title);
       setChats((prev) => prev.map((c) => c.id === chatId ? { ...c, title } : c));
+    } else if (messages.length >= 4 && messages.length % 2 === 0) {
+      // Regenerate title after 4+ messages if needed
+      const currentChat = chats.find((c) => c.id === chatId);
+      if (currentChat?.title?.includes("New") || !currentChat?.title) {
+        try {
+          const response = await fetch("/api/chat/title", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: [...messages, userMessage] }),
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.title) {
+              await updateChatTitle(chatId, data.title);
+              setChats((prev) => prev.map((c) => c.id === chatId ? { ...c, title: data.title } : c));
+            }
+          }
+        } catch (err) {
+          console.error("[ChatInterface] Title generation error:", err);
+        }
+      }
     }
 
     try {
@@ -369,18 +390,24 @@ export function ChatInterface({ initialChats, user }: ChatInterfaceProps) {
                   animate={{ opacity: 1 }}
                   className="space-y-6"
                 >
-                  {messages.map((message, i) => (
-                    <ChatMessage
-                      key={message.id}
-                      role={message.role}
-                      content={message.content}
-                      isStreaming={
-                        isStreaming &&
-                        i === messages.length - 1 &&
-                        message.role === "assistant"
-                      }
-                    />
-                  ))}
+                  {messages.map((message, i) => {
+                    // Show date separator between different days
+                    const shouldShowDateSeparator = i === 0 || false; // Can be enhanced later for actual dates
+                    
+                    return (
+                      <div key={message.id}>
+                        <ChatMessage
+                          role={message.role}
+                          content={message.content}
+                          isStreaming={
+                            isStreaming &&
+                            i === messages.length - 1 &&
+                            message.role === "assistant"
+                          }
+                        />
+                      </div>
+                    );
+                  })}
                   <AnimatePresence>
                     {isTyping && <TypingIndicator />}
                   </AnimatePresence>
