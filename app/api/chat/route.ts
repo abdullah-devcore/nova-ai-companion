@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { ProChatPromptBuilder } from "@/lib/ai/prompt-builder";
 import { ResponseEnhancer } from "@/lib/ai/response-enhancer";
+import { GroqProvider } from "@/lib/ai/groq-provider";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -72,11 +73,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const apiKey = process.env.OPENROUTER_API_KEY;
+    const groqApiKey = process.env.GROQ_API_KEY;
+    const openrouterApiKey = process.env.OPENROUTER_API_KEY;
 
-    if (!apiKey) {
+    if (!groqApiKey && !openrouterApiKey) {
       return new Response(
-        JSON.stringify({ error: "OpenRouter API key not configured. Please add OPENROUTER_API_KEY to your environment variables." }),
+        JSON.stringify({ error: "No AI API key configured. Please add GROQ_API_KEY or OPENROUTER_API_KEY to your environment variables." }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
@@ -87,13 +89,30 @@ export async function POST(req: NextRequest) {
     };
 
     const allMessages = [systemMessage, ...messages];
+
+    // Try Groq first (faster), fall back to OpenRouter if needed
+    if (groqApiKey) {
+      try {
+        const groq = new GroqProvider(groqApiKey);
+        return await groq.getStream(allMessages, systemMessage.content);
+      } catch (groqError) {
+        console.error("[Chat] Groq error:", groqError);
+        
+        // Fall back to OpenRouter if Groq fails
+        if (!openrouterApiKey) {
+          throw groqError;
+        }
+      }
+    }
+
+    // Fall back to OpenRouter
     const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
     let response: Response | null = null;
     let lastError = "";
 
     for (const model of FREE_MODELS) {
-      response = await tryModelRequest(apiKey, model, allMessages, siteUrl);
+      response = await tryModelRequest(openrouterApiKey!, model, allMessages, siteUrl);
 
       if (response.ok) break;
 

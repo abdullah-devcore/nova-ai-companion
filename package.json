@@ -9,6 +9,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@ai-sdk/groq": "^3.0.39",
     "@hookform/resolvers": "^3.9.1",
     "@radix-ui/react-accordion": "1.2.12",
     "@radix-ui/react-alert-dialog": "1.1.15",
@@ -48,6 +49,7 @@
     "date-fns": "4.1.0",
     "embla-carousel-react": "8.6.0",
     "framer-motion": "^12.38.0",
+    "groq-sdk": "^1.2.0",
     "highlight.js": "^11.11.1",
     "input-otp": "1.4.2",
     "katex": "^0.16.47",
