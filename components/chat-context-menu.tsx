@@ -2,8 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Edit2, Trash2, Copy, Archive, Share2 } from "lucide-react";
+import { Edit2, Trash2, Copy, Archive, Share2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ExportDialog } from "./export-dialog";
 
 interface ContextMenuProps {
   x: number;
@@ -25,6 +26,7 @@ export function ChatContextMenu({
   onClose,
 }: ContextMenuProps) {
   const [isRenaming, setIsRenaming] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [newTitle, setNewTitle] = useState(chatTitle);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -60,6 +62,11 @@ export function ChatContextMenu({
       icon: Edit2,
       label: "Rename",
       action: () => setIsRenaming(true),
+    },
+    {
+      icon: Download,
+      label: "Export",
+      action: () => setIsExporting(true),
     },
     {
       icon: Copy,
@@ -151,32 +158,44 @@ export function ChatContextMenu({
   }
 
   return (
-    <motion.div
-      ref={menuRef}
-      initial={{ opacity: 0, scale: 0.95, y: -10 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95, y: -10 }}
-      style={{ top: `${y}px`, left: `${x}px` }}
-      className="fixed z-50 w-56 bg-card border border-border rounded-lg shadow-lg overflow-hidden"
-    >
-      {menuItems.map((item) => {
-        const Icon = item.icon;
-        return (
-          <motion.button
-            key={item.label}
-            onClick={item.action}
-            whileHover={{ backgroundColor: "rgba(100, 116, 139, 0.1)" }}
-            className={`
-              w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left
-              transition-colors hover:bg-muted
-              ${item.danger ? "text-destructive hover:bg-destructive/10" : "text-foreground"}
-            `}
-          >
-            <Icon className="w-4 h-4" />
-            <span>{item.label}</span>
-          </motion.button>
-        );
-      })}
-    </motion.div>
+    <>
+      <motion.div
+        ref={menuRef}
+        initial={{ opacity: 0, scale: 0.95, y: -10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: -10 }}
+        style={{ top: `${y}px`, left: `${x}px` }}
+        className="fixed z-50 w-56 bg-card border border-border rounded-lg shadow-lg overflow-hidden"
+      >
+        {menuItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <motion.button
+              key={item.label}
+              onClick={item.action}
+              whileHover={{ backgroundColor: "rgba(100, 116, 139, 0.1)" }}
+              className={`
+                w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left
+                transition-colors hover:bg-muted
+                ${item.danger ? "text-destructive hover:bg-destructive/10" : "text-foreground"}
+              `}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{item.label}</span>
+            </motion.button>
+          );
+        })}
+      </motion.div>
+
+      <ExportDialog
+        isOpen={isExporting}
+        chatId={chatId}
+        chatTitle={chatTitle}
+        onClose={() => {
+          setIsExporting(false);
+          onClose();
+        }}
+      />
+    </>
   );
 }
