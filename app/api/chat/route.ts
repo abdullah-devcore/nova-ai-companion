@@ -73,12 +73,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const groqApiKey = process.env.GROQ_API_KEY;
-    const openrouterApiKey = process.env.OPENROUTER_API_KEY;
+    const groqApiKey = process.env.GROQ_API_KEY?.trim();
+    const openrouterApiKey = process.env.OPENROUTER_API_KEY?.trim();
 
     if (!groqApiKey && !openrouterApiKey) {
       return new Response(
-        JSON.stringify({ error: "No AI API key configured. Please add GROQ_API_KEY or OPENROUTER_API_KEY to your environment variables." }),
+        JSON.stringify({ 
+          error: "No AI API key configured. Please add GROQ_API_KEY or OPENROUTER_API_KEY to your environment variables.",
+          details: "Both API keys are empty or missing"
+        }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
@@ -94,14 +97,22 @@ export async function POST(req: NextRequest) {
     if (groqApiKey) {
       try {
         const groq = new GroqProvider(groqApiKey);
+        console.log("[Chat] Using Groq provider");
         return await groq.getStream(allMessages, systemMessage.content);
       } catch (groqError) {
         console.error("[Chat] Groq error:", groqError);
         
         // Fall back to OpenRouter if Groq fails
         if (!openrouterApiKey) {
-          throw groqError;
+          return new Response(
+            JSON.stringify({ 
+              error: `Groq API failed: ${groqError instanceof Error ? groqError.message : String(groqError)}. No OpenRouter fallback configured.`,
+            }),
+            { status: 500, headers: { "Content-Type": "application/json" } }
+          );
         }
+        
+        console.log("[Chat] Falling back to OpenRouter");
       }
     }
 

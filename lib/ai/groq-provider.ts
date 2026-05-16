@@ -8,10 +8,13 @@ export class GroqProvider {
   private apiUrl = "https://api.groq.com/openai/v1/chat/completions";
 
   constructor(apiKey: string) {
+    if (!apiKey || apiKey.trim() === "") {
+      throw new Error("Groq API key is required");
+    }
     this.apiKey = apiKey;
   }
 
-  async streamChat(messages: ChatMessage[], systemPrompt: string): Promise<ReadableStream<string>> {
+  async streamChat(messages: ChatMessage[], systemPrompt: string): Promise<ReadableStream<Uint8Array>> {
     const allMessages = [
       { role: "system" as const, content: systemPrompt },
       ...messages,
@@ -34,11 +37,24 @@ export class GroqProvider {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Groq API error: ${response.status} ${error}`);
+      const errorText = await response.text();
+      let errorMessage = `Groq API error: ${response.status}`;
+      
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.error?.message || errorMessage;
+      } catch {
+        errorMessage += ` - ${errorText.substring(0, 200)}`;
+      }
+      
+      throw new Error(errorMessage);
     }
 
-    return response.body || new ReadableStream();
+    if (!response.body) {
+      throw new Error("Groq API returned empty stream");
+    }
+
+    return response.body;
   }
 
   async getStream(messages: ChatMessage[], systemPrompt: string): Promise<Response> {
